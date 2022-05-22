@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars
 import React, { useEffect, useRef } from 'react'
 
 /**
@@ -8,7 +9,7 @@ import React, { useEffect, useRef } from 'react'
  * @param {(WindowEventMap | HTMLElementEventMap | Event)=>void} handler 
  * @param {React.RefObject<HTMLElement | void>} [element=void]
  */
-export default function useEventListener(eventName, handler, element) {
+const useEventListener = (eventName, handler, element) => {
     const savedHandler = useRef()
     useEffect(() => {
         const targetElement = element?.current || window
@@ -24,3 +25,4 @@ export default function useEventListener(eventName, handler, element) {
         }
     }, [eventName, element, handler])
 }
+export default useEventListener

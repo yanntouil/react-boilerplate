@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
+import { classNames } from "../app/helpers"
 import normalizeSearch from "../app/helpers/normalizeSearch"
 import { useOnClickOutside } from "../app/hooks"
 
@@ -10,18 +11,29 @@ import { useOnClickOutside } from "../app/hooks"
  *      options: { label: string, value: string|number, icon?: JSX.Element }[],
  *      placeholder?: string,
  *      name?: string,
- *      label?: boolean,
+ *      labelIcon: JSX.Element,
  *      clear?: boolean,
+ *      isValid?: boolean,
+ *      validate?: boolean,
  * }} props
  * @returns {JSX.Element}
  */
-const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', name = 'form-select-autocomplete', label, clear = false}) => {
+const FormSelectAutocomplete = ({ 
+    value, 
+    setValue, 
+    options, 
+    placeholder = '', 
+    name = 'form-select-autocomplete', 
+    labelIcon, 
+    clear = false,
+    isValid, 
+    validate,
+}) => {
 
     /**
-     * Filed
+     * Field
      */
     const [ fieldValue, setFieldValue ] = useState(value)
-    const [ fieldHover, setFieldHover ] = useState(false)
     const fieldRef = useRef(null)
     const fieldChange = ({ target }) => {
         setFieldValue(target.value)
@@ -30,15 +42,15 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
         if (option) setValue(option.value)
     }
     const fieldBlur = ({ relatedTarget }) => {
-        if(blurRef?.current?.contains(relatedTarget)) return
-        setDropdown(false)
-        console.log('blur');
-        let option = options.find(option => option.label === fieldValue)
-        if (option) return setFieldValue(option.label)
-        option = options.find(option => option.value === value)
-        if (option) return setFieldValue(option.label)
-        setFieldValue('')
-        setValue('')
+        if (clearRef?.current === relatedTarget || !blurRef?.current.contains(relatedTarget)) {
+            setDropdown(false)
+            let option = options.find(option => option.label === fieldValue)
+            if (option) return setFieldValue(option.label)
+            option = options.find(option => option.value === value)
+            if (option) return setFieldValue(option.label)
+            setFieldValue('')
+            setValue('')
+        }
     }
     useEffect(() => {
         const option = options.find(option => option.value === value)
@@ -46,20 +58,28 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
     }, [options, value])
 
     /**
+     * Clear
+     */
+    const clearRef = useRef(null)
+    const onClear = () => {
+        setValue('')
+        fieldRef?.current.focus()
+    }
+ 
+    /**
      * Options
      */
     const optionsRef = useRef([])
-    const selectOption = (option) => {
+    const selectOption = useCallback((option) => {
         setValue(option.value)
         fieldRef?.current?.focus()
         setHoveredOption(-1)
         setDropdown(false)
-        setFieldHover(false)
-    }
-    const filteredOptions = () => {
+    }, [setValue])
+    const filteredOptions = useMemo(() => {
         if (!fieldValue) return options
         return options.filter(option => normalizeSearch(option.label).includes(normalizeSearch(fieldValue)))
-    }
+    }, [ fieldValue, options ])
 
     /**
      * Dropdown
@@ -68,7 +88,8 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
     const blurRef = useRef(null)
     const dropdownRef = useRef(null)
     useEffect(() => {
-        const index = options.findIndex(option => option.value === value)
+        if (!dropdown) return
+        const index = filteredOptions.findIndex(option => option.value === value)
         setHoveredOption(index)
         scrollTo(index)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,24 +100,24 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
      * Keyboard
      */
     const [ hoveredOption, setHoveredOption ] = useState(-1)
-    const manageKeyboard = (e) => {
+    const manageKeyboard = useCallback((e) => {
         if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return
         if (e.key === 'Escape') return setDropdown(false)
         if (e.key === 'Enter') {
-            if (options[hoveredOption]) {
+            if (filteredOptions[hoveredOption]) {
                 e.preventDefault()
-                return selectOption(options[hoveredOption])
+                return selectOption(filteredOptions[hoveredOption])
             } else return
         }
+        e.preventDefault()
         setDropdown(true)
         // Navigation
-        e.preventDefault()
         let index = hoveredOption
-        if (e.key === "ArrowDown") index = (index + 1 === options.length) ? 0 : index + 1
-        else if (e.key === "ArrowUp") index = (index - 1 < 0) ? options.length -1 : index - 1
+        if (e.key === "ArrowDown") index = (index + 1 >= filteredOptions.length) ? 0 : index + 1
+        else if (e.key === "ArrowUp") index = (index - 1 < 0) ? filteredOptions.length -1 : index - 1
         setHoveredOption(Math.max(0, index))
         scrollTo(index)
-    }
+    }, [ hoveredOption, filteredOptions, selectOption ])
 
     /**
      * Scroll
@@ -114,21 +135,25 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
     return (
         <div 
             className="relative flex w-full h-16" 
-            onMouseOver={() => setFieldHover(true)}
-            onMouseLeave={() => setFieldHover(false)}
             ref={blurRef}
         >
-            {!!label && (
+            {!!labelIcon && (
                 <label 
                     htmlFor={name}
-                    className="absolute inset-y-0 left-0 flex justify-center items-center h-16 w-16 text-neutral-500" 
+                    className={classNames([
+                        'absolute inset-y-0 left-0 flex justify-center items-center h-16 w-16 text-neutral-500',
+                    ])}
                     aria-hidden="true"
                 >
-                    {label}
+                    {labelIcon}
                 </label>
             )}
             <input 
-                className={`flex justify-between items-center grow h-16 pr-16 leading-4 bg-white shadow text-lg text-left placeholder:text-neutral-500 ${label ? 'pl-16' : 'pl-4'}`}
+                className={classNames([
+                    'flex justify-between items-center grow h-16 pr-16 leading-4 bg-white shadow text-lg text-left placeholder:text-neutral-500',
+                    labelIcon ? 'pl-16' : 'pl-4',
+                    { 'shadow-red-300 border border-red-200': validate && !isValid }
+                ])}
                 type="text"
                 id={name}
                 name={name}
@@ -148,26 +173,30 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
                 value={fieldValue}
             />
             <button 
-                className={`absolute inset-y-0 right-0 flex justify-center items-center w-16 h-16`} 
+                className="absolute inset-y-0 right-0 flex justify-center items-center w-16 h-16"
                 aria-hidden="true"
                 tabIndex="-1"
                 onClick={() => setDropdown(!dropdown)}
             >
-                <svg className={`w-4 h-4 fill-current transition-transform duration-300 ease-in-out ${dropdown ? 'rotate-180' : 'rotate-0'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
+                <svg className={classNames([
+                    'w-4 h-4 fill-current transition-transform duration-300 ease-in-out text-neutral-500',
+                    dropdown ? 'rotate-180' : 'rotate-0',
+                ])} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512">
                     <path d="M362.71 203.889L202.719 347.898C196.594 353.367 187.407 353.367 181.282 347.898L21.292 203.889C14.729 197.982 14.198 187.857 20.104 181.295C26.376 174.377 36.499 174.512 42.729 180.107L192.001 314.475L341.272 180.107C347.866 174.23 357.96 174.746 363.897 181.295C369.803 187.857 369.272 197.982 362.71 203.889Z"/>
                 </svg>
                 <span className="sr-only">toggle dropdown</span>
             </button>
 
-            { !!value && clear && (fieldHover || dropdown) && (
+            { !!value && clear && (
                 <button 
-                    className={`absolute inset-y-0 right-16 flex justify-center items-center w-16 h-16`}
+                    className={classNames([
+                        'absolute inset-y-0 right-16 flex justify-center items-center w-16 h-16'
+                    ])}
                     type="button"
-                    onClick={() => setValue('')}
+                    ref={clearRef}
+                    onClick={onClear}
                 >
-                    <svg className="w-4 h-4 fill-current" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512">
-                        <path d="M315.31 411.31C309.056 417.563 298.936 417.563 292.682 411.31L160 278.627L27.318 411.31C21.064 417.563 10.944 417.563 4.69 411.31C-1.563 405.056 -1.563 394.936 4.69 388.682L137.373 256L4.69 123.318C-1.563 117.064 -1.563 106.944 4.69 100.69C10.944 94.437 21.064 94.437 27.318 100.69L160 233.373L292.682 100.69C298.936 94.437 309.056 94.437 315.31 100.69C321.563 106.944 321.563 117.064 315.31 123.318L182.627 256L315.31 388.682C321.563 394.936 321.563 405.056 315.31 411.31Z"/>
-                    </svg>
+                    <svg className="w-4 h-4 fill-current" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><path d="M315.31 411.31C309.056 417.563 298.936 417.563 292.682 411.31L160 278.627L27.318 411.31C21.064 417.563 10.944 417.563 4.69 411.31C-1.563 405.056 -1.563 394.936 4.69 388.682L137.373 256L4.69 123.318C-1.563 117.064 -1.563 106.944 4.69 100.69C10.944 94.437 21.064 94.437 27.318 100.69L160 233.373L292.682 100.69C298.936 94.437 309.056 94.437 315.31 100.69C321.563 106.944 321.563 117.064 315.31 123.318L182.627 256L315.31 388.682C321.563 394.936 321.563 405.056 315.31 411.31Z"/></svg>
                     <span className="sr-only">remove selected option</span>
                 </button>
             )}
@@ -178,7 +207,7 @@ const FormSelectAutocomplete = ({ value, setValue, options, placeholder = '', na
                     id={name + '-listbox'}
                     ref={dropdownRef}
                 >
-                    {filteredOptions().map(( option, index ) => (
+                    {filteredOptions.map(( option, index ) => (
                         <li 
                             key={`${name}-${index}`} 
                             role="option" 
