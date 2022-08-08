@@ -13,7 +13,7 @@ import { classNames } from "../app/helpers"
  * @returns {JSX.Element}
  */
  const FormCheckbox = ({ 
-     value, 
+    value, 
     setValue, 
     label, 
     name = 'form-checkbox',

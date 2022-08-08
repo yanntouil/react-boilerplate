@@ -75,7 +75,7 @@ const FormSelectAutocomplete = ({
         fieldRef?.current?.focus()
         setHoveredOption(-1)
         setDropdown(false)
-    }, [setValue])
+    }, [ setValue ])
     const filteredOptions = useMemo(() => {
         if (!fieldValue) return options
         return options.filter(option => normalizeSearch(option.label).includes(normalizeSearch(fieldValue)))
